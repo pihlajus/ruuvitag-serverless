@@ -1,0 +1,34 @@
+# Terraform working directories (NOT the lock file — commit that)
+**/.terraform/*
+**/.terraform.tfstate.lock.info
+
+# Terraform state — must NEVER be committed
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+
+# Sensitive variable files (commit only *.tfvars.example)
+*.tfvars
+!*.tfvars.example
+
+# Generated cert files (private keys + cert chains stay local)
+*.pem
+*.crt
+*.key
+certs/
+
+# Environment files
+.env
+.env.local
+.envrc
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+tfplan
+*.tfplan

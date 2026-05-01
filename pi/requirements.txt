@@ -1,0 +1,2 @@
+awsiotsdk>=1.22.0
+ruuvitag-sensor>=2.3.0
