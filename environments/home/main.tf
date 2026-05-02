@@ -157,3 +157,21 @@ output "archive_query_url" {
   description = "Function URL for the archive-query Lambda."
   value       = module.archive_query.function_url
 }
+
+# ------------------------------------------------------------------------
+# Daily copy from the live table into the historical archive — closes
+# the gap that opens after Mimir's 14-day retention drops a row.
+# Schema rename happens here: live (mac, ts_ms) -> historical (name,
+# ts_ms) using the same MAC -> name map as the metrics-publisher.
+# ------------------------------------------------------------------------
+
+module "archive_sync" {
+  source = "../../modules/archive-sync"
+
+  env                = var.env
+  live_table_name    = module.timeseries.table_name
+  live_table_arn     = module.timeseries.table_arn
+  archive_table_name = aws_dynamodb_table.historical.name
+  archive_table_arn  = aws_dynamodb_table.historical.arn
+  name_lookup        = var.name_lookup
+}

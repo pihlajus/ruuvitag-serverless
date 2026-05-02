@@ -71,11 +71,16 @@ flowchart LR
 
         metrics_lambda["Lambda<br/>metrics-publisher"]
         archive_lambda["Lambda<br/>archive-query<br/>(Function URL)"]
+        sync_lambda["Lambda<br/>archive-sync<br/>(daily EventBridge)"]
+        eb["EventBridge<br/>cron(0 3 * * ? *)"]
 
         iot --> rule1
         iot --> rule2
         rule1 --> live
         rule2 --> metrics_lambda
+        eb --> sync_lambda
+        sync_lambda -- "Query" --> live
+        sync_lambda -- "BatchWriteItem<br/>(rename mac → name)" --> archive
         archive_lambda -- "dynamodb:Query" --> archive
     end
 
@@ -95,10 +100,10 @@ flowchart LR
     user(("User browser")) -- "HTTPS" --> dashboards
 
     classDef managed fill:#1e6091,color:#fff,stroke:#aaa;
-    class iot,rule1,rule2,live,archive,metrics_lambda,archive_lambda,mimir,dashboards,infinity managed;
+    class iot,rule1,rule2,live,archive,metrics_lambda,archive_lambda,sync_lambda,eb,mimir,dashboards,infinity managed;
 ```
 
-Cost: ~$2.10/month — see the cost breakdown below.
+Cost: ~$2.30/month — see the cost breakdown below.
 
 ## What changed and why
 
@@ -132,12 +137,15 @@ The two biggest items are fixed: compute (regardless of how much data
 the Pi pushes) and the public IPv4 address. The setup pays the same
 price for one sensor as for fifty.
 
-### Target — ~$2.10/month
+### Target — ~$2.30/month
 
 | Component                                            |  Cost  |
 |------------------------------------------------------|--------|
 | Lambda invocations + GB-seconds (metrics-publisher)  |   $0   | (1M req/mo + 400k GB-s/mo always-free; we use 131k req + 15k GB-s) |
 | Lambda invocations (archive-query)                   |   $0   | (only when archive dashboard is opened) |
+| Lambda invocations (archive-sync)                    |   $0   | (1 invocation/day × ~5 s × 512 MB ≈ 75 GB-s/mo) |
+| EventBridge daily schedule                           |   $0   | (1M scheduled events/mo always-free) |
+| DynamoDB archive writes (daily sync)                 | $0.16  | (~130k WRU/mo × $1.25/M) |
 | CloudWatch Logs                                      |   $0   | (5 GB/mo always-free; we use ~60 MB) |
 | IoT Core — connection minutes                        | $0.004 | (1 device × 43,800 min × $0.08/M-min) |
 | IoT Core — messaging                                 | $0.13  | (131k msg × $1/M, 5 KB tier) |
@@ -149,7 +157,7 @@ price for one sensor as for fifty.
 | S3 migration bucket                                  | $0.005 | (200 MB, lifecycle expires after 30 days) |
 | KMS — Terraform state encryption (1 customer key)    | $1.00  | (flat per CMK) |
 | Grafana Cloud Free                                   |   $0   | (21 series, 14-day retention; we are well under the 10k series cap) |
-| **Total**                                            | **~$2.10** |
+| **Total**                                            | **~$2.30** |
 
 The single biggest line is the KMS customer-managed key for Terraform
 state encryption — $1/month flat. Dropping that to S3-default AES256
@@ -180,10 +188,10 @@ writes) is proportional to message count.
 
 | Sensors | Legacy | Target |
 |---------|--------|--------|
-|   3     | ~$15   | ~$2.10 |
-|  10     | ~$15   | ~$2.60 |
-|  50     | ~$15   | ~$5.50 |
-|  100    | ~$15-30 (t3.micro starts struggling) | ~$8.50 |
+|   3     | ~$15   | ~$2.30 |
+|  10     | ~$15   | ~$2.90 |
+|  50     | ~$15   | ~$6.50 |
+|  100    | ~$15-30 (t3.micro starts struggling) | ~$10.00 |
 
 The crossover is somewhere around 200-300 sensors, well outside what
 this home setup needs.
@@ -204,6 +212,39 @@ query backend Grafana hit. The target splits them deliberately:
 So both: live data goes to Mimir for dashboarding *and* DynamoDB for
 archive. Anything older than 14 days is queryable only from DynamoDB,
 via the archive dashboard.
+
+## Keeping the archive in sync after cutover
+
+Mimir's Free-tier retention is 14 days, so any reading older than
+that is no longer in Grafana Cloud. Without an archive feed, the
+dashboard would show a growing gap — the "live" DynamoDB table
+(`ruuvitag-readings-home`) keeps everything, but it isn't queried
+by the dashboards directly.
+
+The `archive-sync` Lambda closes that gap. It runs once a day on an
+EventBridge schedule, queries yesterday's UTC window from the live
+table for every known MAC, and writes the rows into the historical
+table, applying the same MAC → name rename the metrics-publisher
+uses for Mimir labels:
+
+```
+EventBridge (cron 03:00 UTC)
+        │
+        ▼
+   archive-sync Lambda
+        │
+        ├── Query  ruuvitag-readings-home   (mac=F2:FD:..., ts_ms BETWEEN start AND end)
+        │
+        └── BatchWriteItem  ruuvitag-readings-historical-home
+                            (name="Ulko", ts_ms=..., temperature=..., humidity=..., ...)
+```
+
+Idempotent by design — re-running the same day overwrites
+`(name, ts_ms)` keys with identical values. For backfills (e.g. a
+day where the Lambda failed), invoke directly with `{"date": "YYYY-MM-DD"}`.
+
+The result: the archive dashboard always shows complete data,
+regardless of how long ago the reading was taken.
 
 ## How the archive dashboard reads history
 
