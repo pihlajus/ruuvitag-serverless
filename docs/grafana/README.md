@@ -86,12 +86,18 @@ panels you'd add later.
 | `SELECT last("temperature") WHERE "name"='X'`                       | `ruuvi_temperature{name="X"}`                                     |
 | `SELECT last("humidity") WHERE "name"='X'`                          | `ruuvi_humidity{name="X"}`                                        |
 | `SELECT last("pressure") / 100 WHERE "name"='X'`                    | `ruuvi_pressure{name="X"} / 100`                                  |
-| `SELECT mean("temperature") GROUP BY time($__interval)`             | `avg_over_time(ruuvi_temperature{name="X"}[$__interval])`         |
-| `SELECT max("temperature") GROUP BY time($__interval)`              | `max_over_time(ruuvi_temperature{name="X"}[$__interval])`         |
-| `SELECT min("temperature") GROUP BY time($__interval)`              | `min_over_time(ruuvi_temperature{name="X"}[$__interval])`         |
+| `SELECT mean("temperature") GROUP BY time($__interval)`             | `avg_over_time(ruuvi_temperature{name="X"}[5m])`                  |
+| `SELECT max("temperature") GROUP BY time($__interval)`              | `max_over_time(ruuvi_temperature{name="X"}[5m])`                  |
+| `SELECT min("temperature") GROUP BY time($__interval)`              | `min_over_time(ruuvi_temperature{name="X"}[5m])`                  |
 | `SELECT max("temperature") GROUP BY time(24h)`                      | `max_over_time(ruuvi_temperature{name="X"}[24h])`                 |
 | `count(...) WHERE temperature > 50 GROUP BY time(18h)` (sauna)      | `count_over_time((ruuvi_temperature{name="Sauna"} > 50)[$__range:1h])` |
 | `SELECT max("temperature")` (no time filter — all-time max)         | not possible in Prometheus past retention; see archive dashboard  |
+
+The `_over_time` window is a fixed `[5m]` rather than `[$__interval]`:
+the Pi pushes every 60 s, so a 12–20 s `$__interval` bucket usually
+contains zero samples — the graph would show gaps and min/max/avg would
+all collapse to the same point. 5 min gives 5 samples per bucket, real
+min/max spread, and no NaN holes.
 
 ## Sensor renames
 

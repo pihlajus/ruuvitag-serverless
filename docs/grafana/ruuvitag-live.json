@@ -770,7 +770,7 @@
       },
       "targets": [
         {
-          "expr": "avg_over_time(ruuvi_temperature{name=\"Sisä\"}[$__interval])",
+          "expr": "avg_over_time(ruuvi_temperature{name=\"Sisä\"}[5m])",
           "refId": "A",
           "legendFormat": "keskiarvo",
           "datasource": {
@@ -779,7 +779,7 @@
           }
         },
         {
-          "expr": "min_over_time(ruuvi_temperature{name=\"Sisä\"}[$__interval])",
+          "expr": "min_over_time(ruuvi_temperature{name=\"Sisä\"}[5m])",
           "refId": "B",
           "legendFormat": "min",
           "datasource": {
@@ -788,7 +788,7 @@
           }
         },
         {
-          "expr": "max_over_time(ruuvi_temperature{name=\"Sisä\"}[$__interval])",
+          "expr": "max_over_time(ruuvi_temperature{name=\"Sisä\"}[5m])",
           "refId": "C",
           "legendFormat": "max",
           "datasource": {
@@ -834,7 +834,7 @@
       },
       "targets": [
         {
-          "expr": "avg_over_time(ruuvi_temperature{name=\"Ulko\"}[$__interval])",
+          "expr": "avg_over_time(ruuvi_temperature{name=\"Ulko\"}[5m])",
           "refId": "A",
           "legendFormat": "keskiarvo",
           "datasource": {
@@ -843,7 +843,7 @@
           }
         },
         {
-          "expr": "min_over_time(ruuvi_temperature{name=\"Ulko\"}[$__interval])",
+          "expr": "min_over_time(ruuvi_temperature{name=\"Ulko\"}[5m])",
           "refId": "B",
           "legendFormat": "min",
           "datasource": {
@@ -852,7 +852,7 @@
           }
         },
         {
-          "expr": "max_over_time(ruuvi_temperature{name=\"Ulko\"}[$__interval])",
+          "expr": "max_over_time(ruuvi_temperature{name=\"Ulko\"}[5m])",
           "refId": "C",
           "legendFormat": "max",
           "datasource": {
@@ -1036,7 +1036,7 @@
       },
       "targets": [
         {
-          "expr": "avg_over_time(ruuvi_temperature{name=\"Sauna\"}[$__interval])",
+          "expr": "avg_over_time(ruuvi_temperature{name=\"Sauna\"}[5m])",
           "refId": "A",
           "legendFormat": "Sauna",
           "datasource": {
@@ -1069,7 +1069,7 @@
       },
       "targets": [
         {
-          "expr": "avg_over_time(ruuvi_temperature{name=\"Sisä\"}[$__interval])",
+          "expr": "avg_over_time(ruuvi_temperature{name=\"Sisä\"}[5m])",
           "refId": "A",
           "legendFormat": "Sisä",
           "datasource": {
