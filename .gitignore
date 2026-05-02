@@ -32,3 +32,11 @@ certs/
 *~
 tfplan
 *.tfplan
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Lambda build artefacts (re-zipped on terraform apply)
+modules/*/build/
