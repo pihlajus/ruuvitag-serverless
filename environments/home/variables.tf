@@ -56,3 +56,14 @@ variable "archive_query_secret" {
   sensitive   = true
   default     = ""
 }
+
+variable "alert_email" {
+  description = "Email address to receive sensor-silent alerts. AWS sends a confirmation link the first time."
+  type        = string
+}
+
+variable "alert_threshold_minutes" {
+  description = "How many minutes a sensor can be silent before an alert fires."
+  type        = number
+  default     = 60
+}

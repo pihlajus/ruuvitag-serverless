@@ -175,3 +175,21 @@ module "archive_sync" {
   archive_table_arn  = aws_dynamodb_table.historical.arn
   name_lookup        = var.name_lookup
 }
+
+# ------------------------------------------------------------------------
+# Hourly silent-sensor watcher — emails when a Ruuvitag stops publishing
+# (dead battery, Pi reboot, BLE outage, ...). One alert per stale
+# sensor per run; while a sensor stays silent the email repeats hourly.
+# ------------------------------------------------------------------------
+
+module "alert_watcher" {
+  source = "../../modules/alert-watcher"
+
+  env             = var.env
+  live_table_name = module.timeseries.table_name
+  live_table_arn  = module.timeseries.table_arn
+  name_lookup     = var.name_lookup
+
+  alert_email       = var.alert_email
+  threshold_minutes = var.alert_threshold_minutes
+}

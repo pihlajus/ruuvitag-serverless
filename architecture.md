@@ -72,16 +72,21 @@ flowchart LR
         metrics_lambda["Lambda<br/>metrics-publisher"]
         archive_lambda["Lambda<br/>archive-query<br/>(Function URL)"]
         sync_lambda["Lambda<br/>archive-sync<br/>(daily EventBridge)"]
-        eb["EventBridge<br/>cron(0 3 * * ? *)"]
+        watcher_lambda["Lambda<br/>alert-watcher<br/>(hourly EventBridge)"]
+        sns["SNS topic<br/>email subscription"]
+        eb["EventBridge<br/>schedules"]
 
         iot --> rule1
         iot --> rule2
         rule1 --> live
         rule2 --> metrics_lambda
         eb --> sync_lambda
+        eb --> watcher_lambda
         sync_lambda -- "Query" --> live
         sync_lambda -- "BatchWriteItem<br/>(rename mac → name)" --> archive
         archive_lambda -- "dynamodb:Query" --> archive
+        watcher_lambda -- "Query last ts_ms" --> live
+        watcher_lambda -- "Publish if stale" --> sns
     end
 
     subgraph grafana_cloud["Grafana Cloud"]
@@ -100,7 +105,7 @@ flowchart LR
     user(("User browser")) -- "HTTPS" --> dashboards
 
     classDef managed fill:#1e6091,color:#fff,stroke:#aaa;
-    class iot,rule1,rule2,live,archive,metrics_lambda,archive_lambda,sync_lambda,eb,mimir,dashboards,infinity managed;
+    class iot,rule1,rule2,live,archive,metrics_lambda,archive_lambda,sync_lambda,watcher_lambda,sns,eb,mimir,dashboards,infinity managed;
 ```
 
 Cost: ~$2.30/month — see the cost breakdown below.
@@ -144,7 +149,9 @@ price for one sensor as for fifty.
 | Lambda invocations + GB-seconds (metrics-publisher)  |   $0   | (1M req/mo + 400k GB-s/mo always-free; we use 131k req + 15k GB-s) |
 | Lambda invocations (archive-query)                   |   $0   | (only when archive dashboard is opened) |
 | Lambda invocations (archive-sync)                    |   $0   | (1 invocation/day × ~5 s × 512 MB ≈ 75 GB-s/mo) |
-| EventBridge daily schedule                           |   $0   | (1M scheduled events/mo always-free) |
+| Lambda invocations (alert-watcher)                   |   $0   | (24 invocations/day × <1 s × 128 MB) |
+| EventBridge schedules                                |   $0   | (1M scheduled events/mo always-free) |
+| SNS email                                            |   $0   | (1000 emails/mo always-free) |
 | DynamoDB archive writes (daily sync)                 | $0.16  | (~130k WRU/mo × $1.25/M) |
 | CloudWatch Logs                                      |   $0   | (5 GB/mo always-free; we use ~60 MB) |
 | IoT Core — connection minutes                        | $0.004 | (1 device × 43,800 min × $0.08/M-min) |
@@ -245,6 +252,36 @@ day where the Lambda failed), invoke directly with `{"date": "YYYY-MM-DD"}`.
 
 The result: the archive dashboard always shows complete data,
 regardless of how long ago the reading was taken.
+
+## Alerting on silent sensors
+
+A flat AAA battery, a Pi that froze, or a BLE radio tantrum will all
+make a Ruuvitag stop reporting. The `alert-watcher` Lambda runs once
+an hour, queries the live table for each known MAC, and emails a
+notification via SNS if the most recent reading is older than the
+threshold (default 60 minutes):
+
+```
+EventBridge (cron 0 * * * ? *)
+        │
+        ▼
+   alert-watcher Lambda
+        │
+        ├── Query  ruuvitag-readings-home   (mac=F2:FD:..., ScanIndexForward=False, Limit=1)
+        │   for each known MAC: pick the latest ts_ms
+        │
+        └── if any > THRESHOLD_MINUTES old:
+                SNS Publish → "Ruuvitag — N sensoria pimeänä"
+                            → email subscription
+```
+
+Initial subscription needs a one-time confirmation: AWS sends a link
+to the configured `alert_email` and won't deliver anything until the
+link is clicked.
+
+No state tracking — while a sensor stays silent, the email repeats
+every hour. If that's noisy, lower the EventBridge schedule frequency
+or extend the threshold.
 
 ## How the archive dashboard reads history
 
