@@ -393,7 +393,16 @@
       "fieldConfig": {
         "defaults": {
           "unit": "pressurehpa",
-          "decimals": 2
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       }
@@ -797,12 +806,76 @@
       }
     },
     {
+      "id": 104,
+      "type": "row",
+      "title": "Ulkolämpötilan seuranta",
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 25,
+      "type": "timeseries",
+      "title": "Ulkolämpötila",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "avg_over_time(ruuvi_temperature{name=\"Ulko\"}[$__interval])",
+          "refId": "A",
+          "legendFormat": "keskiarvo",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        },
+        {
+          "expr": "min_over_time(ruuvi_temperature{name=\"Ulko\"}[$__interval])",
+          "refId": "B",
+          "legendFormat": "min",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        },
+        {
+          "expr": "max_over_time(ruuvi_temperature{name=\"Ulko\"}[$__interval])",
+          "refId": "C",
+          "legendFormat": "max",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1
+        },
+        "overrides": []
+      }
+    },
+    {
       "id": 103,
       "type": "row",
       "title": "Sauna",
       "gridPos": {
         "x": 0,
-        "y": 28,
+        "y": 37,
         "w": 24,
         "h": 1
       },
@@ -819,7 +892,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 29,
+        "y": 38,
         "w": 8,
         "h": 5
       },
@@ -865,7 +938,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 29,
+        "y": 38,
         "w": 8,
         "h": 5
       },
@@ -911,7 +984,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 29,
+        "y": 38,
         "w": 8,
         "h": 5
       },
@@ -957,7 +1030,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 43,
         "w": 24,
         "h": 8
       },
@@ -990,7 +1063,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 42,
+        "y": 51,
         "w": 24,
         "h": 8
       },
@@ -1023,7 +1096,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 50,
+        "y": 59,
         "w": 24,
         "h": 8
       },

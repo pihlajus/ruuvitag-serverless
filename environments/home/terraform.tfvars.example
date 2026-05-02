@@ -25,3 +25,11 @@ grafana_api_key  = "glc_..."
 #   "CB02684A18A0" = "Sisä"
 #   "FD7DDF1990F8" = "Sauna"
 # }
+
+# Grafana stack credentials for managing the dashboards in docs/grafana
+# via the Grafana HTTP API. Separate from the Mimir credentials above:
+# this token needs Editor role on the stack (Administration → Users and
+# access → Service accounts → Create token).
+grafana_stack_url          = "https://<stack>.grafana.net"
+grafana_dashboard_token    = "glsa_..."
+grafana_prometheus_ds_name = "grafanacloud-<stack>-prom"

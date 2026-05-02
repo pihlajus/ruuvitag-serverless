@@ -67,3 +67,26 @@ variable "alert_threshold_minutes" {
   type        = number
   default     = 60
 }
+
+# ------------------------------------------------------------------------
+# Grafana Cloud — used by the grafana provider to push the dashboards
+# JSON in docs/grafana into the live Grafana stack on terraform apply.
+# Different from the metrics-publisher credentials above: that one writes
+# to Mimir, this one manages dashboards via the Grafana HTTP API.
+# ------------------------------------------------------------------------
+
+variable "grafana_stack_url" {
+  description = "Grafana stack management URL, e.g. https://<stack>.grafana.net."
+  type        = string
+}
+
+variable "grafana_dashboard_token" {
+  description = "Grafana service-account token with Editor (or Admin) role. Manages dashboards via HTTP API."
+  type        = string
+  sensitive   = true
+}
+
+variable "grafana_prometheus_ds_name" {
+  description = "Name of the Prometheus datasource the live dashboard binds to. On Grafana Cloud this is grafanacloud-<stack>-prom."
+  type        = string
+}

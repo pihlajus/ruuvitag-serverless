@@ -13,11 +13,19 @@ view; the archive one is for the long historical timeline.
 
 ## Import the live dashboard
 
-1. In Grafana Cloud: **Dashboards → Import → Upload JSON file**
-2. Pick `ruuvitag-live.json`
-3. Map the `DS_PROMETHEUS` input to your Grafana Cloud Prometheus
-   datasource (it's there by default — `grafanacloud-<stack>-prom`)
-4. Save
+`environments/home/grafana.tf` manages the live dashboard via the
+`grafana/grafana` provider. Set `grafana_stack_url`,
+`grafana_dashboard_token`, and `grafana_prometheus_ds_name` in
+`terraform.tfvars`, then `terraform apply`. The provider substitutes
+`${DS_PROMETHEUS}` with the resolved Prometheus datasource UID and
+overwrites any existing dashboard with the same `uid`.
+
+The JSON file is the source of truth — UI edits in Grafana get
+clobbered on the next apply, by design. Iterate by editing
+`ruuvitag-live.json` and re-applying.
+
+Manual import (fallback): **Dashboards → Import → Upload JSON file**,
+map `DS_PROMETHEUS` to the Prometheus datasource.
 
 The dashboard expects metrics named `ruuvi_temperature`,
 `ruuvi_humidity`, `ruuvi_pressure`, `ruuvi_dew_point`,
