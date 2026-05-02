@@ -24,7 +24,7 @@ Environment=IOT_CERT_PATH=/etc/ruuvitag/cert.pem
 Environment=IOT_KEY_PATH=/etc/ruuvitag/private.key
 Environment=IOT_CA_PATH=/etc/ruuvitag/AmazonRootCA1.pem
 Environment=PUBLISH_INTERVAL_SEC=60
-Environment=SCAN_DURATION_SEC=5
+Environment=SCAN_DURATION_SEC=15
 
 ExecStart=/opt/ruuvitag-venv/bin/python /opt/ruuvitag/ruuvitag_publish.py
 Restart=on-failure

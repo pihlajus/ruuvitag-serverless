@@ -18,7 +18,7 @@ Required:
 
 Optional:
   PUBLISH_INTERVAL_SEC   default 60
-  SCAN_DURATION_SEC      default 5
+  SCAN_DURATION_SEC      default 15
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ def main() -> None:
     key_path = env("IOT_KEY_PATH")
     ca_path = env("IOT_CA_PATH")
     publish_interval = int(env("PUBLISH_INTERVAL_SEC", "60"))
-    scan_duration = int(env("SCAN_DURATION_SEC", "5"))
+    scan_duration = int(env("SCAN_DURATION_SEC", "15"))
 
     print(f"connecting to {endpoint} as {client_id}", flush=True)
     conn = mqtt_connection_builder.mtls_from_path(
