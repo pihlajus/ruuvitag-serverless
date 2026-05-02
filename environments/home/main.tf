@@ -117,3 +117,22 @@ resource "aws_iam_role_policy" "iot_rule_logs" {
     }]
   })
 }
+
+# ------------------------------------------------------------------------
+# Metrics fan-out — second IoT Rule action that pushes each reading to
+# Grafana Cloud Mimir as a Prometheus-style metric. The DynamoDB rule
+# above is independent: a Lambda failure won't keep readings out of the
+# archive.
+# ------------------------------------------------------------------------
+
+module "metrics_publisher" {
+  source = "../../modules/metrics-publisher"
+
+  env          = var.env
+  topic_filter = "ruuvitag/+/sensor"
+  name_lookup  = var.name_lookup
+
+  grafana_url      = var.grafana_url
+  grafana_username = var.grafana_username
+  grafana_api_key  = var.grafana_api_key
+}

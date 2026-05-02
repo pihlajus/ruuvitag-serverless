@@ -1,0 +1,27 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+#
+# Grafana Cloud credentials — used by the metrics-publisher Lambda
+# to push readings to your Grafana Cloud Mimir.
+#
+# Where to find each value (logged in to your Grafana Cloud stack):
+#   grafana_url      Connections → Add new connection → Influx →
+#                    "Send Metrics" → URL field
+#   grafana_username Same page, "Instance ID" — numeric
+#   grafana_api_key  Administration → Users and access → Cloud access
+#                    policies → Create access policy with metrics:write,
+#                    then add a token. Starts with "glc_".
+#
+# Leaving these empty deploys the Lambda but pushes will fail at
+# runtime — fine for the initial bring-up.
+
+grafana_url      = "https://influx-prod-XX-prod-eu-west-Y.grafana.net/api/v1/push/influx/write"
+grafana_username = "1234567"
+grafana_api_key  = "glc_..."
+
+# Override sensor MAC → display name mapping if needed.
+# Keys are uppercase MAC without colons.
+# name_lookup = {
+#   "F2FD824D5C5C" = "Ulko"
+#   "CB02684A18A0" = "Sisä"
+#   "FD7DDF1990F8" = "Sauna"
+# }
