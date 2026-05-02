@@ -27,17 +27,45 @@ module's MAC→name lookup config.
 
 ## Datasource for the archive dashboard
 
-DynamoDB doesn't have a single canonical Grafana datasource. Three
-realistic choices:
+The official Grafana DynamoDB datasource is Enterprise-only — not
+available on the Free tier. Instead, the `archive-query` Lambda
+module exposes a tiny HTTP shim in front of the historical table,
+and the dashboard queries it through the **Infinity** community
+plugin (free).
 
-| Plugin | Query style | Comment |
-|---|---|---|
-| `grafana-dynamodb-datasource` (community) | JSON KeyCondition | Lightweight, no extra services. PartiQL also supported. |
-| `grafana-athena-datasource` (official AWS) | SQL via Athena Federated Query | Familiar SQL, but $5 / TB scanned. Overkill for ~2 GB. |
-| Custom Lambda + `grafana-json-datasource` | JSON time-series API | Most control. Most code to maintain. |
+### Install Infinity plugin
 
-For a home project the community plugin is the obvious pick. The
-queries in `ruuvitag-archive.queries.md` are written for that plugin.
+1. Connections → **Add new connection** → search **"Infinity"**
+2. Click **"Install"** on `Infinity` by `yesoreyeram`
+3. After install, click **"Add new data source"**
+
+### Configure the datasource
+
+- Name: `Ruuvitag archive`
+- URL: paste the Function URL from `terraform output archive_query_url`,
+  e.g. `https://kkdpvza3nh7t7tu3yaqcnux7ra0alylh.lambda-url.eu-north-1.on.aws/`
+- Authentication: **No Auth**
+- Custom HTTP Headers (Add header):
+  - Header: `X-Auth-Token`
+  - Value: the `archive_query_secret` from `terraform.tfvars`
+- Allowed Hosts: same Function URL as above (paste it again)
+- Save & test
+
+### Import the archive dashboard
+
+1. Dashboards → **New** → **Import** → upload
+   `ruuvitag-archive.json`
+2. Map `DS_INFINITY` to your `Ruuvitag archive` data source
+3. Time range: defaults to last 30 d. Stretch out as needed — the
+   archive covers 2020-03 onward.
+
+### How it works
+
+Each panel queries the Lambda Function URL with `?sensor=X&field=Y&from=$__from&to=$__to`.
+The Lambda authenticates the bearer token, queries the historical
+DynamoDB table, decimates to at most 5000 points, and returns a JSON
+array `[{"ts": ..., "v": ...}, ...]` that Infinity parses into a
+Grafana time-series.
 
 ## InfluxQL → PromQL conversion table
 

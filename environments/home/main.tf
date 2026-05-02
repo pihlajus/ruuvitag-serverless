@@ -136,3 +136,24 @@ module "metrics_publisher" {
   grafana_username = var.grafana_username
   grafana_api_key  = var.grafana_api_key
 }
+
+# ------------------------------------------------------------------------
+# HTTP query proxy in front of the archive table — turns the historical
+# DynamoDB readings into a JSON time-series consumable by the Grafana
+# Infinity datasource. Keeps the dashboard side decoupled from DynamoDB
+# specifics; the Lambda is the only thing that knows the table schema.
+# ------------------------------------------------------------------------
+
+module "archive_query" {
+  source = "../../modules/archive-query"
+
+  env                = var.env
+  archive_table_name = aws_dynamodb_table.historical.name
+  archive_table_arn  = aws_dynamodb_table.historical.arn
+  shared_secret      = var.archive_query_secret
+}
+
+output "archive_query_url" {
+  description = "Function URL for the archive-query Lambda."
+  value       = module.archive_query.function_url
+}

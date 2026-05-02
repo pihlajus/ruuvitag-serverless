@@ -49,3 +49,10 @@ variable "grafana_api_key" {
   sensitive   = true
   default     = ""
 }
+
+variable "archive_query_secret" {
+  description = "Bearer token Grafana sends in X-Auth-Token to the archive-query Lambda. Generate with `openssl rand -hex 32` and put in terraform.tfvars."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
