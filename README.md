@@ -22,17 +22,23 @@ Raspberry Pi (at home)
   │ MQTT over mTLS
   ▼
 AWS IoT Core
-  │ IoT Rule
-  ▼
-DynamoDB (mac partition / ts_ms sort)
-  │
-  ▼
-Grafana Cloud (free tier)
+  ├── IoT Rule ─→ DynamoDB (mac partition / ts_ms sort, full archive)
+  └── IoT Rule ─→ Lambda ─→ Grafana Cloud Prometheus (last 14 days)
 ```
 
-Originally planned with Timestream, but Timestream is not available in
-`eu-north-1`. DynamoDB on-demand is plenty for 4 sensors at 1-minute
-intervals (~$0.20/month).
+Two destinations, one for each thing Grafana wants:
+
+- **DynamoDB** is the long-term archive. On-demand pricing, queryable
+  by `mac` + time range, used for history older than 14 days via the
+  community DynamoDB datasource plugin.
+- **Grafana Cloud Prometheus** is the live dashboard backend. PromQL
+  panels are nicer than DynamoDB's query API for time-series, and the
+  Free tier's 14-day retention covers day-to-day monitoring.
+
+Originally planned with Timestream as a single store, but Timestream
+is not available in `eu-north-1`. The split keeps storage cost in
+DynamoDB (~$0.50/month for 6 years of data) and dashboard ergonomics
+in Prometheus (free).
 
 ## Repository structure
 
@@ -41,7 +47,8 @@ intervals (~$0.20/month).
 ├── bootstrap/                  State backend (S3 + DynamoDB lock + KMS)
 ├── modules/
 │   ├── iot-ingestion/         IoT Thing, cert, policy
-│   └── timeseries-storage/    DynamoDB table + IAM role for IoT Rule
+│   ├── timeseries-storage/    DynamoDB table + IAM role for IoT Rule
+│   └── metrics-publisher/     Lambda → Grafana Cloud Prometheus push
 ├── environments/
 │   └── home/                  Composition: modules + IoT Topic Rule
 └── pi/                        BLE -> MQTT publisher running on the Pi
