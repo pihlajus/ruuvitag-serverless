@@ -69,34 +69,36 @@ flowchart LR
         live[("DynamoDB<br/>ruuvitag-readings-home<br/>(mac, ts_ms)")]
         archive[("DynamoDB<br/>ruuvitag-readings-historical-home<br/>(name, ts_ms)")]
 
-        lambda["Lambda<br/>metrics-publisher"]
+        metrics_lambda["Lambda<br/>metrics-publisher"]
+        archive_lambda["Lambda<br/>archive-query<br/>(Function URL)"]
 
         iot --> rule1
         iot --> rule2
         rule1 --> live
-        rule2 --> lambda
+        rule2 --> metrics_lambda
+        archive_lambda -- "dynamodb:Query" --> archive
     end
 
     subgraph grafana_cloud["Grafana Cloud"]
         mimir[("Mimir<br/>14-day metrics retention")]
         dashboards["Dashboards<br/>(live + archive)"]
-        plugin["DynamoDB<br/>data source plugin"]
+        infinity["Infinity datasource<br/>plugin"]
 
         mimir --> dashboards
-        plugin --> dashboards
+        infinity --> dashboards
     end
 
     pi -- "MQTT/mTLS<br/>ruuvitag/MAC/sensor" --> iot
-    lambda -- "HTTPS<br/>Influx line protocol" --> mimir
-    plugin -- "Query API" --> archive
+    metrics_lambda -- "HTTPS<br/>Influx line protocol" --> mimir
+    infinity -- "HTTPS GET<br/>X-Auth-Token" --> archive_lambda
 
     user(("User browser")) -- "HTTPS" --> dashboards
 
     classDef managed fill:#1e6091,color:#fff,stroke:#aaa;
-    class iot,rule1,rule2,live,archive,lambda,mimir,dashboards,plugin managed;
+    class iot,rule1,rule2,live,archive,metrics_lambda,archive_lambda,mimir,dashboards,infinity managed;
 ```
 
-Cost: ~$1.70/month — see the cost breakdown below.
+Cost: ~$2.10/month — see the cost breakdown below.
 
 ## What changed and why
 
@@ -130,11 +132,12 @@ The two biggest items are fixed: compute (regardless of how much data
 the Pi pushes) and the public IPv4 address. The setup pays the same
 price for one sensor as for fifty.
 
-### Target — ~$1.70/month
+### Target — ~$2.10/month
 
 | Component                                            |  Cost  |
 |------------------------------------------------------|--------|
-| Lambda invocations + GB-seconds                      |   $0   | (1M req/mo + 400k GB-s/mo always-free; we use 131k req + 15k GB-s) |
+| Lambda invocations + GB-seconds (metrics-publisher)  |   $0   | (1M req/mo + 400k GB-s/mo always-free; we use 131k req + 15k GB-s) |
+| Lambda invocations (archive-query)                   |   $0   | (only when archive dashboard is opened) |
 | CloudWatch Logs                                      |   $0   | (5 GB/mo always-free; we use ~60 MB) |
 | IoT Core — connection minutes                        | $0.004 | (1 device × 43,800 min × $0.08/M-min) |
 | IoT Core — messaging                                 | $0.13  | (131k msg × $1/M, 5 KB tier) |
@@ -142,10 +145,11 @@ price for one sensor as for fifty.
 | DynamoDB live writes                                 | $0.16  | (131k WRU × $1.25/M) |
 | DynamoDB live storage                                | $0.03  | (~100 MB/year × $0.25/GB-mo) |
 | DynamoDB historical storage                          | $0.33  | (~1.3 GB × $0.25/GB-mo) |
+| DynamoDB archive reads (16 dashboard loads/mo)       | $0.09  | ($0.005 per load × 16) |
 | S3 migration bucket                                  | $0.005 | (200 MB, lifecycle expires after 30 days) |
 | KMS — Terraform state encryption (1 customer key)    | $1.00  | (flat per CMK) |
 | Grafana Cloud Free                                   |   $0   | (21 series, 14-day retention; we are well under the 10k series cap) |
-| **Total**                                            | **~$1.70** |
+| **Total**                                            | **~$2.10** |
 
 The single biggest line is the KMS customer-managed key for Terraform
 state encryption — $1/month flat. Dropping that to S3-default AES256
@@ -176,10 +180,10 @@ writes) is proportional to message count.
 
 | Sensors | Legacy | Target |
 |---------|--------|--------|
-|   3     | ~$15   | ~$1.70 |
-|  10     | ~$15   | ~$2.20 |
-|  50     | ~$15   | ~$5.00 |
-|  100    | ~$15-30 (t3.micro starts struggling) | ~$8.00 |
+|   3     | ~$15   | ~$2.10 |
+|  10     | ~$15   | ~$2.60 |
+|  50     | ~$15   | ~$5.50 |
+|  100    | ~$15-30 (t3.micro starts struggling) | ~$8.50 |
 
 The crossover is somewhere around 200-300 sensors, well outside what
 this home setup needs.
@@ -200,6 +204,58 @@ query backend Grafana hit. The target splits them deliberately:
 So both: live data goes to Mimir for dashboarding *and* DynamoDB for
 archive. Anything older than 14 days is queryable only from DynamoDB,
 via the archive dashboard.
+
+## How the archive dashboard reads history
+
+Grafana's official DynamoDB datasource plugin is Enterprise-only and
+isn't available on the Free tier. To keep the project on Free, a
+small `archive-query` Lambda sits between Grafana and the historical
+table:
+
+```mermaid
+sequenceDiagram
+    participant U as User browser
+    participant G as Grafana Cloud
+    participant I as Infinity plugin
+    participant L as archive-query Lambda
+    participant D as DynamoDB historical
+
+    U->>G: open archive dashboard
+    G->>I: render panel (sensor=Ulko, field=temperature, range=last 30d)
+    I->>L: HTTPS GET /?sensor=Ulko&field=temperature&from=...&to=...<br/>X-Auth-Token: ****
+    L->>L: validate sensor + field + token
+    L->>D: Query name=Ulko, ts_ms BETWEEN from AND to
+    D-->>L: paged items
+    L->>L: decimate to ≤ 5000 points
+    L-->>I: JSON array [{ts, v}, ...]
+    I-->>G: parse into Grafana time-series
+    G-->>U: render line chart
+```
+
+Why a Lambda shim:
+
+- **Auth**: Infinity sends bearer tokens cleanly. Doing AWS sigv4
+  against Lambda Function URLs from a browser-side plugin is
+  awkward.
+- **Decimation**: a six-year temperature range is ~3 M items per
+  sensor. Rendering them all in a panel browser-side is pointless;
+  the Lambda decimates to a tunable cap (`MAX_POINTS=5000` by
+  default, evenly spaced).
+- **Schema isolation**: panels never know how DynamoDB items are
+  shaped. Future schema tweaks stay inside the Lambda.
+- **Least privilege**: the Lambda's IAM role allows only
+  `dynamodb:Query` on the archive table. Nothing else in the account
+  is reachable through the Function URL.
+
+The Function URL is `auth_type = NONE` at the AWS level — the security
+boundary is the X-Auth-Token check inside the function. The token is
+generated with `openssl rand -hex 32`, stored in `terraform.tfvars`
+(gitignored), and passed to Grafana as a Custom HTTP Header on the
+Infinity datasource configuration.
+
+A typical archive panel-load (24 queries × 30-day windows) costs
+roughly **$0.005** in DynamoDB read units; storage of the historical
+table itself is the biggest passive line at **$0.33/month**.
 
 ## What's not in this picture
 
