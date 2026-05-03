@@ -82,6 +82,45 @@ resource "aws_iam_role_policy" "sns_publish" {
   })
 }
 
+# ----------------------------------------------------------------------
+# Per-sensor alert cooldown state.
+#
+# JSON map: sensor name → unix-ms of the last alert email. Lambda reads
+# at the start of each run, and writes back when the set of stale
+# sensors changes. Standard SSM parameters are free, so this is the
+# cheapest place to keep one row of mutable state.
+#
+# ignore_changes on value: the Lambda is the writer; terraform only
+# seeds an empty map on first apply.
+# ----------------------------------------------------------------------
+
+resource "aws_ssm_parameter" "alert_state" {
+  name        = "/ruuvitag-${var.env}/alert-state"
+  description = "Per-sensor cooldown state for the alert-watcher Lambda."
+  type        = "String"
+  value       = "{}"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_iam_role_policy" "ssm_state" {
+  name = "ssm-alert-state"
+  role = aws_iam_role.lambda_exec.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssm:GetParameter",
+        "ssm:PutParameter",
+      ]
+      Resource = aws_ssm_parameter.alert_state.arn
+    }]
+  })
+}
+
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = "/aws/lambda/${local.function_name}"
   retention_in_days = var.lambda_log_retention_days
@@ -104,10 +143,12 @@ resource "aws_lambda_function" "this" {
 
   environment {
     variables = {
-      LIVE_TABLE_NAME    = var.live_table_name
-      SNS_TOPIC_ARN      = aws_sns_topic.alerts.arn
-      NAME_LOOKUP        = jsonencode(var.name_lookup)
-      THRESHOLD_MINUTES  = tostring(var.threshold_minutes)
+      LIVE_TABLE_NAME   = var.live_table_name
+      SNS_TOPIC_ARN     = aws_sns_topic.alerts.arn
+      NAME_LOOKUP       = jsonencode(var.name_lookup)
+      THRESHOLD_MINUTES = tostring(var.threshold_minutes)
+      ALERT_STATE_PARAM = aws_ssm_parameter.alert_state.name
+      COOLDOWN_HOURS    = tostring(var.cooldown_hours)
     }
   }
 
@@ -115,6 +156,7 @@ resource "aws_lambda_function" "this" {
     aws_iam_role_policy_attachment.lambda_basic,
     aws_iam_role_policy.ddb_query,
     aws_iam_role_policy.sns_publish,
+    aws_iam_role_policy.ssm_state,
     aws_cloudwatch_log_group.lambda,
   ]
 }

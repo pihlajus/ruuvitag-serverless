@@ -29,6 +29,12 @@ variable "threshold_minutes" {
   default     = 60
 }
 
+variable "cooldown_hours" {
+  description = "After alerting about a stale sensor, suppress further emails about that same sensor for this many hours. State is cleared when the sensor recovers, so a new outage triggers immediately."
+  type        = number
+  default     = 24
+}
+
 variable "schedule_expression" {
   description = "EventBridge schedule for the watcher. Default: top of every hour."
   type        = string
